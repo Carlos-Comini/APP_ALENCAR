@@ -119,6 +119,8 @@ def exibir():
     cnpjs_empresas = get_cnpjs_planilha()
     arquivos_listados = []
 
+    from pathlib import Path
+    BASE_DIR = Path("n:/Comum/carlos.santos/2. Operacional/2.2. Em Andamento/Projeto xml/APP_ALENCAR/arquivo")
     for cnpj_dir in BASE_DIR.iterdir():
         if not cnpj_dir.is_dir():
             continue
