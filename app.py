@@ -23,13 +23,6 @@ st.markdown("""
             padding: 0;
             overflow-x: hidden;
         }
-        /* Centraliza o card de login */
-        .stApp > div:first-child {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
     </style>
 """, unsafe_allow_html=True)
 
