@@ -1,2 +1,5 @@
 # Ignorar credenciais do Google
 credenciais.json
+
+# Ignorar secrets do Streamlit
+.streamlit/secrets.toml
