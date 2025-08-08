@@ -37,7 +37,7 @@ if "dados_usuario" not in st.session_state:
 def exibir_login_html():
     with open("index_embutido_streamlit.html", "r", encoding="utf-8") as f:
         html = f.read()
-    components.html(html, height=900, scrolling=False)
+    components.html(html, height=1200, scrolling=False)
 
 def processa_login_por_url():
     email = st.query_params.get("email")
