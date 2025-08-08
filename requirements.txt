@@ -1,3 +1,4 @@
+gspread
 altgraph==0.17.4
 attrs==25.3.0
 cachetools==5.5.2
