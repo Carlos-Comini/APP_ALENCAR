@@ -29,13 +29,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 import streamlit as st
+
 from pathlib import Path
 from datetime import datetime
 import mimetypes
 import gspread
 import re
+from funcoes_compartilhadas.drive_utils import upload_para_drive
 
-BASE_DIR = Path("arquivo")
+ID_PASTA_ARQUIVOS = "1V7qAWb8MpoX6fV9LVB0Cq8ovlogEanmt"
 
 # Lista de bancos conhecidos para identificar o nome mesmo que contenha outras palavras
 BANCOS_CONHECIDOS = [
@@ -75,7 +77,7 @@ def extrair_info(nome_arquivo):
 def exibir():
     st.title("📁 Arquivos Contábil")
 
-    BASE_DIR.mkdir(parents=True, exist_ok=True)
+
     st.subheader("📤 Enviar arquivos")
 
     tipos_aceitos = [
@@ -92,17 +94,25 @@ def exibir():
     )
 
     if arquivos:
+        usuario = st.session_state.get("usuario", {})
+        nome_usuario = usuario.get("Usuario", "Desconhecido").replace(" ", "_")
+        nome_empresa = usuario.get("Empresa", "").replace(" ", "_")
         for arq in arquivos:
             nome = arq.name
             cnpj, banco, ano, mes = extrair_info(nome)
-
-            pasta_destino = BASE_DIR / cnpj / banco / ano / mes
-            pasta_destino.mkdir(parents=True, exist_ok=True)
-
-            caminho = pasta_destino / nome
-            with open(caminho, "wb") as f:
-                f.write(arq.read())
-
+            # Monta nome: nome_original_usuario_empresa.ext
+            nome_base, ext = nome.rsplit('.', 1)
+            nome_final = f"{nome_base}_{nome_usuario}_{nome_empresa}.{ext}"
+            # Opcional: pode incluir mais informações no nome_final se desejar
+            # Salva temporariamente
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.'+ext) as tmp:
+                tmp.write(arq.read())
+                temp_path = tmp.name
+            # Upload para o Google Drive
+            upload_para_drive(temp_path, nome_final, ID_PASTA_ARQUIVOS)
+            import os
+            os.remove(temp_path)
         st.success(f"{len(arquivos)} arquivo(s) enviado(s) com sucesso!")
 
     st.subheader("📂 Arquivos Armazenados")

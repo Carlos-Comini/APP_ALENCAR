@@ -1,10 +1,13 @@
+
 import gspread
 import streamlit as st
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
+from funcoes_compartilhadas.drive_utils import upload_para_drive
 
-XML_BASE = Path(r"https://github.com/Carlos-Comini/PROJETO_XML/tree/main/xmls")
+# IDs das pastas no Google Drive
+ID_PASTA_XML = "1QrgORE3rm2d_CusD7cqT12wN5wQoeurj"
 
 def get_cnpjs_planilha():
     import json
@@ -53,7 +56,8 @@ def exibir():
     if uploaded:
         cnpjs_empresas = get_cnpjs_planilha()
         for file in uploaded:
-            temp_path = XML_BASE / "temp.xml"
+            # Salva temporariamente o arquivo recebido
+            temp_path = f"temp_{file.name}"
             with open(temp_path, "wb") as f:
                 f.write(file.read())
             info = parse_xml(temp_path)
@@ -64,40 +68,56 @@ def exibir():
             else:
                 cnpj = "geral"
             hoje = datetime.today().strftime("%Y_%m_%d")
-            pasta_destino = XML_BASE / cnpj / hoje
-            pasta_destino.mkdir(parents=True, exist_ok=True)
-            caminho = pasta_destino / file.name
-            temp_path.replace(caminho)
+            # Nome do arquivo no Drive: cnpj/hoje/nome.xml
+            nome_arquivo_drive = f"{cnpj}/{hoje}/{file.name}"
+            upload_para_drive(temp_path, nome_arquivo_drive, ID_PASTA_XML)
+            # Remove arquivo temporário
+            import os
+            os.remove(temp_path)
         st.success(f"{len(uploaded)} arquivo(s) salvo(s) com sucesso!")
 
     st.subheader("📁 Arquivos Recebidos")
     cnpjs_empresas = get_cnpjs_planilha()
+    from funcoes_compartilhadas.drive_utils import listar_arquivos_drive, baixar_arquivo_drive, ID_PASTA_XML
     dados = []
-    for cnpj_dir in XML_BASE.iterdir():
-        if cnpj_dir.is_dir():
-            if st.session_state.get("usuario", {}).get("Tipo") == "Cliente":
-                if cnpj_dir.name != st.session_state["usuario"]["Empresa_ID"]:
-                    continue
-            razao_social = cnpjs_empresas.get(cnpj_dir.name, cnpj_dir.name)
-            for data_dir in cnpj_dir.iterdir():
-                for xml in data_dir.glob("*.xml"):
-                    info = parse_xml(xml)
-                    info["Empresa"] = razao_social
-                    info["Arquivo"] = xml.name
-                    info["Caminho"] = str(xml)
-                    if info["CNPJ_Destinatario"] in cnpjs_empresas:
-                        info["Tipo"] = "ENTRADA"
-                        info["CNPJ"] = info["CNPJ_Destinatario"]
-                        info["Razao_Social"] = cnpjs_empresas.get(info["CNPJ_Destinatario"], "—")
-                    elif info["CNPJ_Emitente"] in cnpjs_empresas:
-                        info["Tipo"] = "SAÍDA"
-                        info["CNPJ"] = info["CNPJ_Emitente"]
-                        info["Razao_Social"] = cnpjs_empresas.get(info["CNPJ_Emitente"], "—")
-                    else:
-                        info["Tipo"] = "OUTRO"
-                        info["CNPJ"] = "-"
-                        info["Razao_Social"] = "—"
-                    dados.append(info)
+    arquivos_drive = listar_arquivos_drive(ID_PASTA_XML)
+    for file in arquivos_drive:
+        nome = file['title']
+        if not nome.endswith('.xml'):
+            continue
+        # Extrair CNPJ e data do caminho (ex: cnpj/data/arquivo.xml)
+        partes = nome.split('/')
+        if len(partes) >= 3:
+            cnpj, data, nome_arquivo = partes[-3], partes[-2], partes[-1]
+        else:
+            cnpj, data, nome_arquivo = 'geral', '', nome
+        if st.session_state.get("usuario", {}).get("Tipo") == "Cliente":
+            if cnpj != st.session_state["usuario"].get("Empresa_ID", ""):
+                continue
+        razao_social = cnpjs_empresas.get(cnpj, cnpj)
+        # Baixar conteúdo do XML para parsear informações
+        conteudo_xml = baixar_arquivo_drive(file['id'])
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xml') as tmp:
+            tmp.write(conteudo_xml.encode('utf-8'))
+            tmp_path = tmp.name
+        info = parse_xml(tmp_path)
+        info["Empresa"] = razao_social
+        info["Arquivo"] = nome_arquivo
+        info["Caminho"] = file['id']
+        if info["CNPJ_Destinatario"] in cnpjs_empresas:
+            info["Tipo"] = "ENTRADA"
+            info["CNPJ"] = info["CNPJ_Destinatario"]
+            info["Razao_Social"] = cnpjs_empresas.get(info["CNPJ_Destinatario"], "—")
+        elif info["CNPJ_Emitente"] in cnpjs_empresas:
+            info["Tipo"] = "SAÍDA"
+            info["CNPJ"] = info["CNPJ_Emitente"]
+            info["Razao_Social"] = cnpjs_empresas.get(info["CNPJ_Emitente"], "—")
+        else:
+            info["Tipo"] = "OUTRO"
+            info["CNPJ"] = "-"
+            info["Razao_Social"] = "—"
+        dados.append(info)
     empresas = sorted(set(d["Empresa"] for d in dados))
     filtro_empresa = st.selectbox("Empresa", ["Todas"] + empresas)
     if filtro_empresa != "Todas":
@@ -108,4 +128,5 @@ def exibir():
             st.write(f"**CNPJ ({d['Tipo']}):** {d['CNPJ']}")
             st.write(f"**Razão Social:** {d['Razao_Social']}")
             st.write(f"**Empresa:** {d['Empresa']}")
-            st.download_button("⬇️ Baixar XML", data=open(d["Caminho"], "rb"), file_name=d["Arquivo"])
+            conteudo_xml = baixar_arquivo_drive(d["Caminho"])
+            st.download_button("⬇️ Baixar XML", data=conteudo_xml, file_name=d["Arquivo"])
