@@ -7,7 +7,7 @@ from funcoes_compartilhadas.estilos import aplicar_estilo_padrao
 st.set_page_config(layout="wide", page_title="Gestão de XML")
 
 # Estilo fullscreen real + sem sidebar
-st.markdown(""" 
+st.markdown("""
     <style>
         #MainMenu, header, footer {
             visibility: hidden;
@@ -22,6 +22,13 @@ st.markdown("""
             margin: 0;
             padding: 0;
             overflow-x: hidden;
+        }
+        /* Centraliza o card de login */
+        .stApp > div:first-child {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
     </style>
 """, unsafe_allow_html=True)
